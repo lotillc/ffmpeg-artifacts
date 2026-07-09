@@ -1,0 +1,70 @@
+name: Publish FFmpeg Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/release-manifest.ts"
+      - "src/upstream-sources.ts"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-publish even if the release tag already exists"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-ffmpeg-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Publishes the release to THIS repo, so the built-in token is sufficient --
+    # no cross-repo PAT. gh + tar/unzip/gzip are preinstalled on the runner.
+    permissions:
+      contents: write
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Preflight (skip if release already complete)
+        id: check
+        run: |
+          set -euo pipefail
+          MANIFEST=src/release-manifest.ts
+          parse() { grep -oE "$1:[[:space:]]*\"[^\"]+\"" "$MANIFEST" | head -1 | sed -E 's/.*"([^"]+)".*/\1/'; }
+          TAG=$(parse releaseTag); REPO=$(parse repo)
+          if [ "${{ inputs.force }}" = "true" ]; then echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          ASSETS=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name')
+          MISSING=""
+          for want in checksums.sha256 ffmpeg-linux-x64-gnu.tar.gz ffmpeg-darwin-arm64.tar.gz ffmpeg-win32-x64.tar.gz; do
+            echo "$ASSETS" | grep -qx "$want" || MISSING="$MISSING $want"
+          done
+          if [ -n "$MISSING" ]; then echo "Missing:$MISSING"; echo "publish=true" >> "$GITHUB_OUTPUT";
+          else echo "Release complete - skipping."; echo "publish=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Mirror + publish
+        if: steps.check.outputs.publish == 'true'
+        run: npm run publish:release

@@ -1,0 +1,20 @@
+{
+  "name": "ffmpeg-artifacts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Publishes pinned, mirrored FFmpeg/ffprobe release binaries consumed by @loti/ffmpeg",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "publish:release": "tsx src/publish.ts"
+  },
+  "dependencies": {
+    "yargs": "^17.7.2",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/yargs": "^17.0.33",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  }
+}
