@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "yargs": "^17.7.2",
-    "zod": "^4.1.0"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
